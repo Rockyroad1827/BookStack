@@ -1,183 +1,155 @@
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // Default configuration
     let config = {
         buttons: [
             {
-                name: "Google",
-                url: "https://google.com",
-                icon: "zmdi-web",
-                emoji: "🌐",
-                title: "Access The Web"
+                name: "Files",
+                url: "https://files.mbdigital.co.uk:8444",
+                icon: "zmdi-folder",
+                emoji: "📁",
+                title: "Access File Server",
+                roles: ["Admin", "Editor"]
             },
             {
-                name: "Bookstack App",
-                url: "https://www.bookstackapp.com/",
-                icon: "zmdi-book",
-                emoji: "📖",
-                title: "Bookstack Website"
+                name: "Monitor",
+                url: "http://mbdwiki.pdmbi.local:3001",
+                icon: "zmdi-monitor",
+                emoji: "🖥️",
+                title: "Access Monitor",
+                roles: ["Admin"]
             }
         ],
         settings: {
             dropdownTitle: "Access",
             showEmojis: true,
-            showIcons: true
+            showIcons: true,
+            adminRole: "Admin"
         }
     };
 
-    // Try to load saved config from localStorage
     const savedConfig = localStorage.getItem('customAccessDropdownConfig');
     if (savedConfig) {
         config = JSON.parse(savedConfig);
     }
 
-    // Detect dark mode
-    function isDarkMode() {
-        return document.body.classList.contains('dark-mode') || 
-               window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // --- NEW: Get user roles from DOM ---
+    function getCurrentUserRoles() {
+        const roleData = document.body.dataset.userRoles || '';
+        return roleData.split(',').map(r => r.trim());
     }
 
-    // Create the dropdown container
+    function userHasRole(role) {
+        return getCurrentUserRoles().includes(role);
+    }
+
+    function isAdmin() {
+        return userHasRole(config.settings.adminRole);
+    }
+
+    function userCanSeeButton(buttonRoles) {
+        if (!buttonRoles || buttonRoles.length === 0) return true;
+        return buttonRoles.some(role => getCurrentUserRoles().includes(role));
+    }
+
+    const userRoles = getCurrentUserRoles();
+    if (!userRoles.includes('MBD Employee')) return;
+
     const dropdown = document.createElement('div');
     dropdown.className = 'custom-access-dropdown';
-    
-    // Create the main dropdown button
+
     const dropdownButton = document.createElement('button');
     dropdownButton.className = 'access-dropbtn';
     dropdownButton.innerHTML = `${config.settings.dropdownTitle} <span class="arrow">▼</span>`;
-    
-    // Create dropdown content container
+
     const dropdownContent = document.createElement('div');
     dropdownContent.className = 'dropdown-content';
     dropdownContent.style.display = 'none';
-    
-    // Function to create button elements
+
     function createButtonElements() {
         dropdownContent.innerHTML = '';
-        
-        config.buttons.forEach((button, index) => {
-            // Create button link
+        const visibleButtons = config.buttons.filter(button => 
+            userCanSeeButton(button.roles)
+        );
+
+        visibleButtons.forEach((button, index) => {
             const buttonLink = document.createElement('a');
             buttonLink.href = button.url;
             buttonLink.title = button.title;
-            
-            // Build inner HTML based on settings
+
             let innerHTML = '';
-            if (config.settings.showIcons) {
-                innerHTML += `<i class="zmdi ${button.icon}"></i>`;
-            }
-            if (config.settings.showEmojis) {
-                innerHTML += ` ${button.emoji}`;
-            }
+            if (config.settings.showIcons) innerHTML += `<i class="zmdi ${button.icon}"></i>`;
+            if (config.settings.showEmojis) innerHTML += ` ${button.emoji}`;
             innerHTML += ` ${button.name}`;
-            
             buttonLink.innerHTML = innerHTML;
-            
-            // Add edit button
-            const editBtn = document.createElement('span');
-            editBtn.className = 'edit-button';
-            editBtn.innerHTML = '✏️';
-            editBtn.title = 'Edit this button';
-            editBtn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                showButtonConfigModal(index);
-            };
-            buttonLink.appendChild(editBtn);
-            
+
+            if (isAdmin()) {
+                const editBtn = document.createElement('span');
+                editBtn.className = 'edit-button';
+                editBtn.innerHTML = '✏️';
+                editBtn.title = 'Edit this button';
+                editBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showButtonConfigModal(config.buttons.findIndex(b => b.name === button.name));
+                };
+                buttonLink.appendChild(editBtn);
+            }
+
             dropdownContent.appendChild(buttonLink);
-            
-            // Add spacer between buttons except after last one
-            if (index < config.buttons.length - 1) {
+
+            if (index < visibleButtons.length - 1) {
                 const spacer = document.createElement('div');
                 spacer.className = 'dropdown-spacer';
                 dropdownContent.appendChild(spacer);
             }
         });
-        
-        // Add configuration button at the bottom
-        const spacer = document.createElement('div');
-        spacer.className = 'dropdown-spacer';
-        dropdownContent.appendChild(spacer);
-        
-        const configLink = document.createElement('a');
-        configLink.href = '#';
-        configLink.innerHTML = '<i class="zmdi zmdi-settings"></i> Configure';
-        configLink.onclick = (e) => {
-            e.preventDefault();
-            showConfigModal();
-        };
-        dropdownContent.appendChild(configLink);
-        
-        // Update colors based on dark mode
+      // Add note at the bottom
+        const note = document.createElement('div');
+        note.style.padding = '10px 15px';
+        note.style.fontSize = '0.85em';
+        note.style.color = isDarkMode() ? 'var(--dark-header-text)' : 'white';
+        note.style.borderTop = '1px solid rgba(255,255,255,0.2)';
+        note.style.marginTop = '5px';
+        note.textContent = 'Connect to the mbdigital house wifi to access Monitor';
+        dropdownContent.appendChild(note);
+
+
         updateColorsForDarkMode();
     }
-    
-    // Update colors when dark mode changes
+
+    function isDarkMode() {
+        return document.body.classList.contains('dark-mode') || 
+               window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
     function updateColorsForDarkMode() {
         const darkMode = isDarkMode();
-        
-        // Dropdown button
-        if (darkMode) {
-            dropdownButton.style.backgroundColor = 'var(--dark-header-bg)';
-            dropdownButton.style.color = 'var(--dark-header-text)';
-            dropdownButton.style.border = '1px solid var(--dark-border-color)';
-        } else {
-            dropdownButton.style.backgroundColor = 'var(--color-primary)';
-            dropdownButton.style.color = 'white';
-            dropdownButton.style.border = 'none';
-        }
-        
-        // Dropdown content
-        if (darkMode) {
-            dropdownContent.style.backgroundColor = 'var(--dark-header-bg)';
-            dropdownContent.style.border = '1px solid var(--dark-border-color)';
-            dropdownContent.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.4)';
-        } else {
-            dropdownContent.style.backgroundColor = 'var(--color-primary)';
-            dropdownContent.style.border = 'none';
-            dropdownContent.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
-        }
-        
-        // Links in dropdown
-        const links = dropdownContent.querySelectorAll('a');
-        links.forEach(link => {
-            link.style.color = darkMode ? 'var(--dark-header-text)' : 'white';
+
+        dropdownButton.style.backgroundColor = darkMode ? 'var(--dark-header-bg)' : 'var(--color-primary)';
+        dropdownButton.style.color = darkMode ? 'var(--dark-header-text)' : 'white';
+        dropdownButton.style.border = darkMode ? '1px solid var(--dark-border-color)' : 'none';
+
+        dropdownContent.style.backgroundColor = darkMode ? 'var(--dark-header-bg)' : 'var(--color-primary)';
+        dropdownContent.style.border = darkMode ? '1px solid var(--dark-border-color)' : 'none';
+        dropdownContent.style.boxShadow = darkMode ? '0 8px 16px rgba(0, 0, 0, 0.4)' : '0 8px 16px rgba(0, 0, 0, 0.2)';
+
+        dropdownContent.querySelectorAll('a, i, .edit-button').forEach(el => {
+            el.style.color = darkMode ? 'var(--dark-header-text)' : 'white';
         });
-        
-        // Icons in dropdown
-        const icons = dropdownContent.querySelectorAll('i');
-        icons.forEach(icon => {
-            icon.style.color = darkMode ? 'var(--dark-header-text)' : 'white';
-        });
-        
-        // Spacers
-        const spacers = dropdownContent.querySelectorAll('.dropdown-spacer');
-        spacers.forEach(spacer => {
+
+        dropdownContent.querySelectorAll('.dropdown-spacer').forEach(spacer => {
             spacer.style.backgroundColor = darkMode ? 'var(--dark-border-color)' : 'rgba(255, 255, 255, 0.2)';
         });
-        
-        // Edit buttons
-        const editButtons = dropdownContent.querySelectorAll('.edit-button');
-        editButtons.forEach(btn => {
-            btn.style.color = darkMode ? 'var(--dark-header-text)' : 'white';
-        });
     }
-    
-    // Initial creation of buttons
-    createButtonElements();
-    
-    // Assemble the dropdown
+
     dropdown.appendChild(dropdownButton);
     dropdown.appendChild(dropdownContent);
-    
-    // Find the shelves link and insert after it
-    const shelvesLink = document.querySelector('a[href$="/shelves"]');
-    if (shelvesLink) {
+
+    const shelvesLink = document.querySelector('a[href$=\"/shelves\"]');
+    if (shelvesLink && userRoles.includes('MBD Employee')) {
         shelvesLink.parentNode.insertBefore(dropdown, shelvesLink);
     }
-    
-    // Toggle dropdown on click with animation
+
     dropdownButton.addEventListener('click', function(e) {
         e.stopPropagation();
         const isOpen = dropdownContent.style.display === 'block';
@@ -185,15 +157,13 @@ document.addEventListener("DOMContentLoaded", function() {
         document.querySelector('.access-dropbtn .arrow').style.transform = 
             isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
     });
-    
-    // Close dropdown when clicking elsewhere
+
     document.addEventListener('click', function() {
         dropdownContent.style.display = 'none';
         const arrow = document.querySelector('.access-dropbtn .arrow');
         if (arrow) arrow.style.transform = 'rotate(0deg)';
     });
-    
-    // Observe dark mode changes
+
     const darkModeObserver = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
             if (mutation.attributeName === 'class') {
@@ -201,286 +171,13 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
     });
-    
-    darkModeObserver.observe(document.body, {
-        attributes: true
-    });
-    
-    // Configuration Modal
-    function showConfigModal() {
-        // Close dropdown
-        dropdownContent.style.display = 'none';
-        document.querySelector('.access-dropbtn .arrow').style.transform = 'rotate(0deg)';
-        
-        // Create modal overlay
-        const overlay = document.createElement('div');
-        overlay.className = 'config-overlay';
-        
-        // Create modal
-        const modal = document.createElement('div');
-        modal.className = 'config-modal';
-        if (isDarkMode()) modal.classList.add('dark-mode');
-        
-        // Modal title
-        const title = document.createElement('h3');
-        title.textContent = 'Dropdown Configuration';
-        modal.appendChild(title);
-        
-        // General settings
-        const settingsTitle = document.createElement('h4');
-        settingsTitle.textContent = 'General Settings';
-        modal.appendChild(settingsTitle);
-        
-        // Dropdown title setting
-        const titleLabel = document.createElement('label');
-        titleLabel.textContent = 'Dropdown Title:';
-        const titleInput = document.createElement('input');
-        titleInput.type = 'text';
-        titleInput.value = config.settings.dropdownTitle;
-        titleLabel.appendChild(titleInput);
-        modal.appendChild(titleLabel);
-        
-        // Show emojis setting
-        const emojiLabel = document.createElement('label');
-        const emojiCheckbox = document.createElement('input');
-        emojiCheckbox.type = 'checkbox';
-        emojiCheckbox.checked = config.settings.showEmojis;
-        emojiLabel.appendChild(emojiCheckbox);
-        emojiLabel.appendChild(document.createTextNode(' Show emojis'));
-        modal.appendChild(emojiLabel);
-        
-        // Show icons setting
-        const iconLabel = document.createElement('label');
-        const iconCheckbox = document.createElement('input');
-        iconCheckbox.type = 'checkbox';
-        iconCheckbox.checked = config.settings.showIcons;
-        iconLabel.appendChild(iconCheckbox);
-        iconLabel.appendChild(document.createTextNode(' Show icons'));
-        modal.appendChild(iconLabel);
-        
-        // Buttons title
-        const buttonsTitle = document.createElement('h4');
-        buttonsTitle.textContent = 'Buttons';
-        modal.appendChild(buttonsTitle);
-        
-        // Add new button
-        const addButton = document.createElement('button');
-        addButton.className = 'modal-button add-button';
-        addButton.textContent = '+ Add New Button';
-        addButton.onclick = () => showButtonConfigModal(-1);
-        modal.appendChild(addButton);
-        
-        // Buttons list
-        const buttonsList = document.createElement('div');
-        buttonsList.className = 'buttons-list';
-        
-        config.buttons.forEach((button, index) => {
-            const buttonItem = document.createElement('div');
-            buttonItem.className = 'button-item';
-            
-            const buttonPreview = document.createElement('span');
-            let previewText = button.name;
-            if (config.settings.showEmojis) previewText = button.emoji + ' ' + previewText;
-            buttonPreview.textContent = previewText;
-            
-            const editBtn = document.createElement('button');
-            editBtn.className = 'modal-button edit-button';
-            editBtn.textContent = 'Edit';
-            editBtn.onclick = () => showButtonConfigModal(index);
-            
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'modal-button delete-button';
-            deleteBtn.textContent = 'Delete';
-            deleteBtn.onclick = () => {
-                config.buttons.splice(index, 1);
-                saveConfig();
-                showConfigModal();
-            };
-            
-            buttonItem.appendChild(buttonPreview);
-            buttonItem.appendChild(editBtn);
-            buttonItem.appendChild(deleteBtn);
-            buttonsList.appendChild(buttonItem);
-        });
-        
-        modal.appendChild(buttonsList);
-        
-        // Action buttons
-        const actionButtons = document.createElement('div');
-        actionButtons.className = 'modal-actions';
-        
-        const saveButton = document.createElement('button');
-        saveButton.className = 'modal-button save-button';
-        saveButton.textContent = 'Save';
-        saveButton.onclick = () => {
-            config.settings.dropdownTitle = titleInput.value;
-            config.settings.showEmojis = emojiCheckbox.checked;
-            config.settings.showIcons = iconCheckbox.checked;
-            saveConfig();
-            document.body.removeChild(overlay);
-        };
-        
-        const cancelButton = document.createElement('button');
-        cancelButton.className = 'modal-button cancel-button';
-        cancelButton.textContent = 'Cancel';
-        cancelButton.onclick = () => {
-            document.body.removeChild(overlay);
-        };
-        
-        actionButtons.appendChild(cancelButton);
-        actionButtons.appendChild(saveButton);
-        modal.appendChild(actionButtons);
-        
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-        
-        // Close modal when clicking outside
-        overlay.onclick = (e) => {
-            if (e.target === overlay) {
-                document.body.removeChild(overlay);
-            }
-        };
-    }
-    
-    // Button Configuration Modal
-    function showButtonConfigModal(buttonIndex) {
-        // Close dropdown
-        dropdownContent.style.display = 'none';
-        document.querySelector('.access-dropbtn .arrow').style.transform = 'rotate(0deg)';
-        
-        const isNewButton = buttonIndex === -1;
-        const button = isNewButton ? {
-            name: '',
-            url: '',
-            icon: 'zmdi-link',
-            emoji: '🔗',
-            title: ''
-        } : config.buttons[buttonIndex];
-        
-        // Create modal overlay
-        const overlay = document.createElement('div');
-        overlay.className = 'config-overlay';
-        
-        // Create modal
-        const modal = document.createElement('div');
-        modal.className = 'config-modal';
-        if (isDarkMode()) modal.classList.add('dark-mode');
-        
-        // Modal title
-        const title = document.createElement('h3');
-        title.textContent = isNewButton ? 'Add New Button' : 'Edit Button';
-        modal.appendChild(title);
-        
-        // Button name
-        const nameLabel = document.createElement('label');
-        nameLabel.textContent = 'Button Name:';
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.value = button.name;
-        nameInput.placeholder = 'e.g. Files, Monitor';
-        nameLabel.appendChild(nameInput);
-        modal.appendChild(nameLabel);
-        
-        // URL
-        const urlLabel = document.createElement('label');
-        urlLabel.textContent = 'URL:';
-        const urlInput = document.createElement('input');
-        urlInput.type = 'text';
-        urlInput.value = button.url;
-        urlInput.placeholder = 'https://example.com';
-        urlLabel.appendChild(urlInput);
-        modal.appendChild(urlLabel);
-        
-        // Icon
-        const iconLabel = document.createElement('label');
-        iconLabel.textContent = 'Icon Class (zmdi-*):';
-        const iconInput = document.createElement('input');
-        iconInput.type = 'text';
-        iconInput.value = button.icon.replace('zmdi-', '');
-        iconInput.placeholder = 'folder, monitor, etc.';
-        iconLabel.appendChild(iconInput);
-        modal.appendChild(iconLabel);
-        
-        // Emoji
-        const emojiLabel = document.createElement('label');
-        emojiLabel.textContent = 'Emoji:';
-        const emojiInput = document.createElement('input');
-        emojiInput.type = 'text';
-        emojiInput.value = button.emoji;
-        emojiInput.placeholder = '🔗, 📁, etc.';
-        emojiInput.maxLength = 2;
-        emojiLabel.appendChild(emojiInput);
-        modal.appendChild(emojiLabel);
-        
-        // Title (tooltip)
-        const titleLabel = document.createElement('label');
-        titleLabel.textContent = 'Tooltip Text:';
-        const titleInput = document.createElement('input');
-        titleInput.type = 'text';
-        titleInput.value = button.title;
-        titleInput.placeholder = 'Shown on hover';
-        titleLabel.appendChild(titleInput);
-        modal.appendChild(titleLabel);
-        
-        // Action buttons
-        const actionButtons = document.createElement('div');
-        actionButtons.className = 'modal-actions';
-        
-        const saveButton = document.createElement('button');
-        saveButton.className = 'modal-button save-button';
-        saveButton.textContent = 'Save';
-        saveButton.onclick = () => {
-            const newButton = {
-                name: nameInput.value.trim(),
-                url: urlInput.value.trim(),
-                icon: 'zmdi-' + iconInput.value.trim().replace('zmdi-', ''),
-                emoji: emojiInput.value.trim(),
-                title: titleInput.value.trim()
-            };
-            
-            if (isNewButton) {
-                config.buttons.push(newButton);
-            } else {
-                config.buttons[buttonIndex] = newButton;
-            }
-            
-            saveConfig();
-            document.body.removeChild(overlay);
-        };
-        
-        const cancelButton = document.createElement('button');
-        cancelButton.className = 'modal-button cancel-button';
-        cancelButton.textContent = 'Cancel';
-        cancelButton.onclick = () => {
-            document.body.removeChild(overlay);
-        };
-        
-        actionButtons.appendChild(cancelButton);
-        actionButtons.appendChild(saveButton);
-        modal.appendChild(actionButtons);
-        
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-        
-        // Close modal when clicking outside
-        overlay.onclick = (e) => {
-            if (e.target === overlay) {
-                document.body.removeChild(overlay);
-            }
-        };
-    }
-    
-    // Save config to localStorage and refresh UI
-    function saveConfig() {
-        localStorage.setItem('customAccessDropdownConfig', JSON.stringify(config));
-        dropdownButton.innerHTML = `${config.settings.dropdownTitle} <span class="arrow">▼</span>`;
-        createButtonElements();
-    }
+    darkModeObserver.observe(document.body, { attributes: true });
+
+    createButtonElements();
 });
 </script>
 
 <style>
-/* Dropdown container */
 .custom-access-dropdown {
     display: inline-block;
     position: relative;
@@ -489,7 +186,6 @@ document.addEventListener("DOMContentLoaded", function() {
     height: 100%;
 }
 
-/* Dropdown button */
 .access-dropbtn {
     background-color: var(--color-primary);
     color: white !important;
@@ -506,14 +202,12 @@ document.addEventListener("DOMContentLoaded", function() {
     margin: 0 5px;
 }
 
-/* Dark mode dropdown button */
 .dark-mode .access-dropbtn {
     background-color: var(--dark-header-bg);
     color: var(--dark-header-text) !important;
     border: 1px solid var(--dark-border-color);
 }
 
-/* Hover effect */
 .access-dropbtn:hover {
     background-color: rgba(255, 255, 255, 0.2);
     color: white !important;
@@ -524,7 +218,6 @@ document.addEventListener("DOMContentLoaded", function() {
     color: var(--dark-header-text) !important;
 }
 
-/* Arrow animation */
 .access-dropbtn .arrow {
     display: inline-block;
     margin-left: 5px;
@@ -537,7 +230,6 @@ document.addEventListener("DOMContentLoaded", function() {
     color: var(--dark-header-text);
 }
 
-/* Dropdown content */
 .dropdown-content {
     display: none;
     position: absolute;
@@ -557,7 +249,6 @@ document.addEventListener("DOMContentLoaded", function() {
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
 }
 
-/* Stacked links inside the dropdown */
 .dropdown-content a {
     color: white !important;
     padding: 8px 15px;
@@ -576,7 +267,6 @@ document.addEventListener("DOMContentLoaded", function() {
     color: var(--dark-header-text) !important;
 }
 
-/* Edit button in dropdown */
 .dropdown-content a .edit-button {
     position: absolute;
     right: 10px;
@@ -601,7 +291,6 @@ document.addEventListener("DOMContentLoaded", function() {
     opacity: 1;
 }
 
-/* Spacer between buttons */
 .dropdown-spacer {
     height: 1px;
     background-color: rgba(255, 255, 255, 0.2);
@@ -623,7 +312,6 @@ document.addEventListener("DOMContentLoaded", function() {
     color: var(--dark-header-text);
 }
 
-/* Change color of dropdown links on hover */
 .dropdown-content a:hover {
     background-color: var(--color-primary-light);
     color: white !important;
@@ -634,7 +322,6 @@ document.addEventListener("DOMContentLoaded", function() {
     color: var(--dark-header-text) !important;
 }
 
-/* Configuration Modal Styles */
 .config-overlay {
     position: fixed;
     top: 0;
@@ -828,7 +515,6 @@ document.addEventListener("DOMContentLoaded", function() {
     flex-grow: 1;
 }
 
-/* Ensure form elements are solid in dark mode */
 .dark-mode .config-modal select,
 .dark-mode .config-modal textarea,
 .dark-mode .config-modal input:not([type="checkbox"]) {
